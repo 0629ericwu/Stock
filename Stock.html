@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>投資組合總覽</title>
+    
+    <!-- 1. 這裡就是設定「分頁標籤小圖示 (Favicon)」的地方 -->
+    <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/2910/2910312.png">
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* --- 深色質感主題 --- */
+        :root {
+            --bg-color: #0b0e11;
+            --card-bg: #151a21;
+            --modal-bg: #1e2329;
+            --text-primary: #eaecef;
+            --text-secondary: #848e9c;
+            --up-color: #ff333a;
+            --down-color: #00c087;
+            --border-color: #2b3139;
+            --highlight: #f0b90b;
+            --cash-color: #3b82f6;
+        }
+
+        body {
+            font-family: "Microsoft JhengHei", "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* --- 版面配置 --- */
+        .main-container {
+            width: 100%;
+            max-width: 1200px;
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+        }
+
+        /* --- 網頁頂部標題列 (Header) --- */
+        .page-header {
+            grid-column: 1 / -1;
+            display: flex;
+            align-items: center;
+            padding: 15px 20px;
+            background-color: var(--card-bg); /* 給標題列一個獨立背景 */
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 20px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+        }
+
+        .header-logo {
+            width: 42px;
+            height: 42px;
+            margin-right: 15px;
+            /* 這裡可以直接換成你的圖片網址 */
+        }
+
+        .header-content h1 {
+            margin: 0;
+            font-size: 22px;
+            font-weight: bold;
+            color: var(--text-primary);
+            letter-spacing: 1px;
+        }
+
+        .header-content p {
+            margin: 2px 0 0 0;
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        /* --- 數據卡片區 --- */
+        .dashboard-header {
+            grid-column: 1 / -1;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background-color: var(--card-bg);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .stat-label { font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; }
+        .stat-value { font-size: 22px; font-weight: bold; letter-spacing: 0.5px; }
+        
+        .rank-badge {
+            position: absolute; top: 10px; right: 10px;
+            background: linear-gradient(135deg, #ffd700, #b8860b);
+            color: #000; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: bold;
+        }
+
+        /* --- 表格區 --- */
+        .table-section {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+        }
+        
+        .section-title { margin: 0 0 15px 0; font-size: 18px; border-left: 4px solid var(--highlight); padding-left: 10px; }
+
+        table { width: 100%; border-collapse: collapse; white-space: nowrap; }
+        thead { border-bottom: 1px solid var(--border-color); }
+        th { color: var(--text-secondary); font-size: 13px; padding: 12px; text-align: right; }
+        th:first-child { text-align: left; }
+        
+        td { padding: 12px; border-bottom: 1px solid var(--border-color); font-size: 14px; text-align: right; cursor: pointer; transition: background 0.2s; }
+        td:first-child { text-align: left; }
+        tbody tr:hover { background-color: rgba(255, 255, 255, 0.05); }
+
+        /* --- 圓餅圖區 --- */
+        .chart-section {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 400px;
+        }
+
+        /* --- Modal (彈出視窗) --- */
+        .modal-overlay {
+            display: none;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(5px);
+        }
+
+        .modal-content {
+            background-color: var(--modal-bg);
+            width: 90%;
+            max-width: 600px;
+            max-height: 85vh;
+            border-radius: 16px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            animation: slideIn 0.3s ease;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+
+        @keyframes slideIn { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+        .modal-header {
+            padding: 15px 25px;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: #151a21;
+        }
+
+        .modal-title { font-size: 20px; font-weight: bold; display: flex; align-items: center; gap: 10px; }
+        .close-btn { background: none; border: none; color: var(--text-secondary); font-size: 28px; cursor: pointer; line-height: 1; }
+        .close-btn:hover { color: #fff; }
+
+        .modal-body { padding: 25px; overflow-y: auto; color: #ccc; }
+
+        .profile-tag {
+            display: inline-block;
+            background-color: #2b3139;
+            color: var(--highlight);
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 13px;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+
+        .profile-desc {
+            line-height: 1.8;
+            font-size: 15px;
+            margin-bottom: 25px;
+            color: #eaecef;
+            text-align: justify;
+        }
+
+        .profile-stats-box {
+            background-color: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .stat-row { display: flex; flex-direction: column; }
+        .stat-row label { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+        .stat-row span { font-size: 16px; font-weight: bold; color: #fff; }
+
+        .stock-id { background: #2b3139; color: #eaecef; padding: 2px 6px; border-radius: 4px; font-size: 12px; font-family: monospace; }
+        .text-up { color: var(--up-color); }
+        .text-down { color: var(--down-color); }
+        .text-cash { color: var(--cash-color); }
+        .hint { font-size: 12px; color: var(--text-secondary); margin-top: 5px; }
+
+        @media (max-width: 900px) {
+            .main-container { grid-template-columns: 1fr; }
+            .dashboard-header { grid-template-columns: 1fr 1fr; }
+            .modal-content { width: 95%; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="main-container">
+        
+        <!-- === 網頁頂部標題與 Logo === -->
+        <div class="page-header">
+            <!-- 這是網頁內容裡的 Logo，你可以換成你的圖片 -->
+            <img src="https://cdn-icons-png.flaticon.com/512/2910/2910312.png" alt="Logo" class="header-logo">
+            <div class="header-content">
+                <h1>投資組合總覽</h1>
+                <p>截至2026/1/5</p>
+            </div>
+        </div>
+        <!-- ========================== -->
+
+        <!-- 數據卡片 -->
+        <div class="dashboard-header">
+            <div class="stat-card">
+                <div class="stat-label">投組淨值 (總資產)</div>
+                <div class="stat-value" id="val-net-assets">--</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">初始金額</div>
+                <div class="stat-value" id="val-initial">--</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">可用資金 (Cash)</div>
+                <div class="stat-value text-cash" id="val-cash">--</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">本月報酬率</div>
+                <div class="stat-value text-down">-5.55%</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">本月損益</div>
+                <div class="stat-value text-down" id="val-pl">-221,805</div>
+            </div>
+             <div class="stat-card">
+                <div class="stat-label">目前排名</div>
+                <div class="stat-value">No. 54</div>
+            </div>
+        </div>
+
+        <!-- 持倉列表 -->
+        <div class="table-section">
+            <h3 class="section-title">持倉部位 <span class="hint">(點擊查看介紹)</span></h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>商品</th>
+                        <th>現價</th>
+                        <th>損益 (P/L)</th>
+                        <th>市值占比</th>
+                    </tr>
+                </thead>
+                <tbody id="portfolio-list"></tbody>
+            </table>
+        </div>
+
+        <!-- 圓餅圖 -->
+        <div class="chart-section">
+            <h3 class="section-title">資產配置</h3>
+            <div style="width: 100%; height: 300px; position: relative;">
+                <canvas id="allocationChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal (公司介紹) -->
+    <div class="modal-overlay" id="stockModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">
+                    <span id="modal-symbol" class="stock-id"></span>
+                    <span id="modal-name"></span>
+                </div>
+                <button class="close-btn" onclick="closeModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div id="modal-industry" class="profile-tag"></div>
+                <div id="modal-desc" class="profile-desc"></div>
+                <div class="profile-stats-box">
+                    <div class="stat-row">
+                        <label>持有股數</label>
+                        <span id="modal-qty"></span>
+                    </div>
+                    <div class="stat-row">
+                        <label>持有成本</label>
+                        <span id="modal-cost"></span>
+                    </div>
+                    <div class="stat-row">
+                        <label>目前市值</label>
+                        <span id="modal-marketval" class="text-highlight"></span>
+                    </div>
+                    <div class="stat-row">
+                        <label>未實現損益</label>
+                        <span id="modal-pl"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const initialCapital = 40000000;
+        const totalAssetsFixed = 37781946;
+        let currentSymbol = '';
+
+// 最新數據：2026-01-05
+        const myData = [
+            { 
+                id: '2330', name: '台積電', type: 'stock', qty: 2000, cost: 1490.00, price: 1670.00, pl: 360000, marketVal: 3340000,
+                industry: '半導體業',
+                desc: '全球晶圓代工龍頭 (TSMC)。目前股價強勢上漲，獲利擴大。'
+            },
+            { 
+                id: '2344', name: '華邦電', type: 'stock', qty: 10000, cost: 71.50, price: 95.50, pl: 240000, marketVal: 955000,
+                industry: '記憶體',
+                desc: '利基型記憶體大廠。股價表現優異，呈現獲利狀態。'
+            },
+            { 
+                id: '2383', name: '台光電', type: 'stock', qty: 1000, cost: 1680.00, price: 1620.00, pl: -60000, marketVal: 1620000,
+                industry: '電子零組件',
+                desc: 'CCL 龍頭廠。目前呈現小幅虧損。'
+            },
+            { 
+                id: '2609', name: '陽明', type: 'stock', qty: 10000, cost: 55.70, price: 54.90, pl: -8000, marketVal: 549000,
+                industry: '航運業',
+                desc: '貨櫃三雄之一。股價於成本附近震盪。'
+            },
+            { 
+                id: '2881', name: '富邦金', type: 'stock', qty: 25000, cost: 97.30, price: 97.20, pl: -2500, marketVal: 2430000,
+                industry: '金融保險',
+                desc: '金控龍頭。股價持穩，損益接近兩平。'
+            },
+            { 
+                id: '2887', name: '台新新光金', type: 'stock', qty: 50000, cost: 20.45, price: 21.00, pl: 27500, marketVal: 1050000,
+                industry: '金融保險',
+                desc: '大型金控合併題材。目前呈現獲利。'
+            },
+            { 
+                id: '3017', name: '奇鋐', type: 'stock', qty: 2000, cost: 1505.00, price: 1450.00, pl: -110000, marketVal: 2900000,
+                industry: '散熱模組',
+                desc: 'AI 散熱大廠。近期股價回檔，呈現虧損。'
+            },
+            { 
+                id: '3231', name: '緯創', type: 'stock', qty: 8000, cost: 152.50, price: 155.00, pl: 20000, marketVal: 1240000,
+                industry: '電腦週邊',
+                desc: 'AI 伺服器代工。股價小幅高於成本，維持獲利。'
+            },
+            { 
+                id: '3293', name: '鈊象', type: 'stock', qty: 2000, cost: 773.00, price: 717.00, pl: -112000, marketVal: 1434000,
+                industry: '文化創意',
+                desc: '遊戲股王。股價修正中，目前虧損。'
+            },
+            { 
+                id: 'MXFA6', name: '小台01', type: 'future', qty: -5, cost: 27865, price: 30310, pl: -611250, marketVal: 7577500,
+                industry: '期貨合約',
+                desc: '做空小台指期貨。因指數大漲突破 3 萬點，空單虧損擴大。'
+            }, 
+            { 
+                id: 'TXO27900', name: '台選買權', type: 'future', qty: 10, cost: 60.00, price: 130.00, pl: 35000, marketVal: 2485000,
+                industry: '選擇權',
+                desc: '看多買權 (Call)。指數上漲帶動權利金翻倍，獲利中。'
+            },
+            { 
+                id: 'TXO28500', name: '台選01買權', type: 'future', qty: 5, cost: 503.00, price: 1880.00, pl: 344250, marketVal: 470000,
+                industry: '選擇權',
+                desc: '深價內買權。獲利大幅拉升，報酬率極高。'
+            },
+            { 
+                id: 'TXO28500M6', name: '台選01賣權', type: 'future', qty: 15, cost: 353.60, price: 96.00, pl: -193200, marketVal: 72000,
+                industry: '選擇權',
+                desc: '看空賣權 (Put)。因指數大漲，權利金大幅縮水，呈現虧損。'
+            }
+        ];
+
+        function renderHeader() {
+            const totalStockValue = myData.reduce((acc, curr) => acc + curr.marketVal, 0);
+            const availableCash = totalAssetsFixed - totalStockValue;
+            const fmt = (num) => num.toLocaleString();
+
+            document.getElementById('val-net-assets').innerText = fmt(totalAssetsFixed);
+            document.getElementById('val-initial').innerText = fmt(initialCapital);
+            document.getElementById('val-cash').innerText = '$' + fmt(availableCash);
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('portfolio-list');
+            const totalStockValue = myData.reduce((acc, curr) => acc + curr.marketVal, 0);
+            const cash = totalAssetsFixed - totalStockValue;
+            let html = '';
+            
+            myData.forEach((item, index) => {
+                const plColor = item.pl > 0 ? 'text-up' : (item.pl < 0 ? 'text-down' : 'text-neutral');
+                const percent = ((item.marketVal / totalAssetsFixed) * 100).toFixed(1);
+
+                html += `
+                    <tr onclick="openModal(${index})">
+                        <td><span class="stock-id">${item.id}</span> ${item.name}</td>
+                        <td class="${item.price > item.cost ? 'text-up' : 'text-down'}">${item.price}</td>
+                        <td class="${plColor}">${item.pl.toLocaleString()}</td>
+                        <td>
+                            <div style="display:flex; align-items:center; gap:5px;">
+                                <div style="width:50px; background:#2b3139; height:4px; border-radius:2px;">
+                                    <div style="width:${percent}%; background:${getColor(index)}; height:100%;"></div>
+                                </div>
+                                <span style="font-size:12px; color:#888;">${percent}%</span>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+            tbody.innerHTML = html;
+            renderChart(cash);
+        }
+
+        function renderChart(cashValue) {
+            const ctx = document.getElementById('allocationChart').getContext('2d');
+            const labels = ['可用現金', ...myData.map(i => i.name)];
+            const data = [cashValue, ...myData.map(i => i.marketVal)];
+            const colors = ['#3b82f6', ...myData.map((_, i) => getColor(i))];
+
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: colors,
+                        borderWidth: 0,
+                        hoverOffset: 10
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'right', labels: { color: '#848e9c', boxWidth: 10 } }
+                    },
+                    cutout: '65%'
+                }
+            });
+        }
+
+        function getColor(index) {
+            const colors = ['#f6465d', '#0ecb81', '#f0b90b', '#9933ff', '#ff9900', '#00cccc', '#ff66cc', '#99cc00', '#cc3300'];
+            return colors[index % colors.length];
+        }
+
+        let currentItem = null;
+
+        function openModal(index) {
+            currentItem = myData[index];
+            const modal = document.getElementById('stockModal');
+            
+            document.getElementById('modal-symbol').innerText = currentItem.id;
+            document.getElementById('modal-name').innerText = currentItem.name;
+            document.getElementById('modal-industry').innerText = currentItem.industry;
+            document.getElementById('modal-desc').innerText = currentItem.desc;
+
+            document.getElementById('modal-qty').innerText = currentItem.qty.toLocaleString();
+            document.getElementById('modal-cost').innerText = currentItem.cost.toFixed(2);
+            document.getElementById('modal-marketval').innerText = '$' + currentItem.marketVal.toLocaleString();
+            
+            const plEl = document.getElementById('modal-pl');
+            plEl.innerText = currentItem.pl.toLocaleString();
+            plEl.className = currentItem.pl >= 0 ? 'text-up' : 'text-down';
+
+            modal.style.display = 'flex';
+        }
+
+        function closeModal() { document.getElementById('stockModal').style.display = 'none'; }
+        document.getElementById('stockModal').addEventListener('click', function(e) { if (e.target === this) closeModal(); });
+
+        renderHeader();
+        renderTable();
+    </script>
+</body>
+</html>
